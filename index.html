@@ -386,7 +386,43 @@
       .admin-main{padding:22px 15px}
       .stats{grid-template-columns:1fr 1fr}
     }
-  </style>
+  
+    .photo-admin-grid{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:18px;
+    }
+    .photo-admin-item{
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:16px;
+      background:#fffaf5;
+    }
+    .photo-admin-item img{
+      width:100%;
+      height:220px;
+      object-fit:cover;
+      border-radius:14px;
+      display:block;
+      margin-bottom:12px;
+      background:#ead7c5;
+    }
+    .photo-admin-item h4{
+      margin:0 0 10px;
+      font-family:Georgia,"Times New Roman",serif;
+      font-size:20px;
+      font-weight:400;
+    }
+    .photo-help{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin-top:8px;
+    }
+    @media(max-width:700px){
+      .photo-admin-grid{grid-template-columns:1fr}
+    }
+</style>
 </head>
 
 <body>
@@ -418,10 +454,10 @@
         </div>
       </div>
       <div class="hero-art">
-        <div class="hero-photo hero-photo-1"></div>
-        <div class="hero-photo hero-photo-2"></div>
-        <div class="hero-photo hero-photo-3"></div>
-        <div class="hero-photo hero-photo-4"></div>
+        <div class="hero-photo hero-photo-1" id="webHero1"></div>
+        <div class="hero-photo hero-photo-2" id="webHero2"></div>
+        <div class="hero-photo hero-photo-3" id="webHero3"></div>
+        <div class="hero-photo hero-photo-4" id="webHero4"></div>
       </div>
     </div>
   </section>
@@ -447,7 +483,7 @@
         <p>Fragancias pensadas para acompañar tus espacios con calidez, identidad y pequeños rituales cotidianos.</p>
         <div><button class="btn btn-primary" onclick="openCatalogWindow(event)">Explorar productos</button></div>
       </div>
-      <div class="story-art"></div>
+      <div class="story-art" id="webStoryPhoto"></div>
     </div>
   </section>
 
@@ -628,6 +664,7 @@
       <button class="side-btn active" onclick="adminView('dashboard',this)">Dashboard</button>
       <button class="side-btn" onclick="adminView('products',this)">Productos</button>
       <button class="side-btn" onclick="adminView('orders',this)">Pedidos</button>
+      <button class="side-btn" onclick="adminView('photos',this)">Fotos web</button>
       <button class="side-btn" onclick="adminView('settings',this)">Configuración</button>
       <button class="side-btn" onclick="closeAdmin()">← Volver a la tienda</button>
     </aside>
@@ -681,11 +718,23 @@ const DEFAULT_SETTINGS = {
   shippingCost:0,
   freeShippingFrom:0,
   mpEndpoint:"/api/mercadopago/create-preference",
-  adminPassword:"amorina2026"
+  adminPassword:"amorina2026",
+  webPhotos:{
+    hero1:"images/amorina-3.jpg",
+    hero2:"images/amorina-5.jpg",
+    hero3:"images/amorina-1.jpg",
+    hero4:"images/amorina-2.jpg",
+    story:"images/amorina-4.jpg"
+  }
 };
 
 let products = JSON.parse(localStorage.getItem("amorina_products") || "null") || DEFAULT_PRODUCTS;
-let settings = {...DEFAULT_SETTINGS,...(JSON.parse(localStorage.getItem("amorina_settings") || "{}"))};
+const savedSettings = JSON.parse(localStorage.getItem("amorina_settings") || "{}");
+let settings = {
+  ...DEFAULT_SETTINGS,
+  ...savedSettings,
+  webPhotos:{...DEFAULT_SETTINGS.webPhotos,...(savedSettings.webPhotos||{})}
+};
 let orders = JSON.parse(localStorage.getItem("amorina_orders") || "[]");
 let cart = JSON.parse(localStorage.getItem("amorina_cart") || "[]");
 
@@ -1090,6 +1139,7 @@ function adminView(view,btn){
     dashboard:"Dashboard",
     products:"Productos",
     orders:"Pedidos",
+    photos:"Fotos web",
     settings:"Configuración"
   };
 
@@ -1099,6 +1149,7 @@ function adminView(view,btn){
   if(view==="dashboard")renderAdminDashboard();
   if(view==="products")renderAdminProducts();
   if(view==="orders")renderAdminOrders();
+  if(view==="photos")renderAdminPhotos();
   if(view==="settings")renderAdminSettings();
 }
 function renderAdminDashboard(){
@@ -1273,6 +1324,75 @@ function changeOrderStatus(id,status){
   if(o)o.status=status;
   persist();
 }
+
+function renderAdminPhotos(){
+  const p=settings.webPhotos||DEFAULT_SETTINGS.webPhotos;
+  document.getElementById("adminContent").innerHTML=`
+    <div class="admin-card">
+      <h3 style="margin-top:0">Fotos de la web</h3>
+      <p class="notice">Podés cambiar las imágenes principales sin tocar el código. Pegá una URL o una ruta como <strong>images/foto.jpg</strong>.</p>
+
+      <div class="photo-admin-grid">
+        ${photoAdminItem("hero1","Portada · Foto 1",p.hero1)}
+        ${photoAdminItem("hero2","Portada · Foto 2",p.hero2)}
+        ${photoAdminItem("hero3","Portada · Foto 3",p.hero3)}
+        ${photoAdminItem("hero4","Portada · Foto 4",p.hero4)}
+        ${photoAdminItem("story","Sección inferior",p.story)}
+      </div>
+
+      <div style="margin-top:18px">
+        <button class="btn btn-primary" onclick="saveWebPhotos()">Guardar fotos</button>
+      </div>
+    </div>`;
+}
+
+function photoAdminItem(key,title,value){
+  return `
+    <div class="photo-admin-item">
+      <h4>${title}</h4>
+      <img id="preview_${key}" src="${escapeAttr(value)}" alt="${escapeAttr(title)}" onerror="this.style.opacity='.25'">
+      <label>Ruta o URL de la imagen</label>
+      <input class="field" id="photo_${key}" value="${escapeAttr(value)}" oninput="previewWebPhoto('${key}',this.value)">
+      <div class="photo-help">Ejemplo: images/amorina-1.jpg</div>
+    </div>`;
+}
+
+function previewWebPhoto(key,value){
+  const img=document.getElementById(`preview_${key}`);
+  if(!img)return;
+  img.style.opacity="1";
+  img.src=value.trim()||settings.webPhotos[key]||"";
+}
+
+function saveWebPhotos(){
+  settings.webPhotos={
+    hero1:document.getElementById("photo_hero1").value.trim(),
+    hero2:document.getElementById("photo_hero2").value.trim(),
+    hero3:document.getElementById("photo_hero3").value.trim(),
+    hero4:document.getElementById("photo_hero4").value.trim(),
+    story:document.getElementById("photo_story").value.trim()
+  };
+  persist();
+  applyWebPhotos();
+  alert("Fotos de la web actualizadas.");
+}
+
+function applyWebPhotos(){
+  const p=settings.webPhotos||DEFAULT_SETTINGS.webPhotos;
+  const map=[
+    ["webHero1",p.hero1],
+    ["webHero2",p.hero2],
+    ["webHero3",p.hero3],
+    ["webHero4",p.hero4],
+    ["webStoryPhoto",p.story]
+  ];
+
+  map.forEach(([id,url])=>{
+    const el=document.getElementById(id);
+    if(el && url) el.style.backgroundImage=`url("${url.replace(/"/g,'\\"')}")`;
+  });
+}
+
 function renderAdminSettings(){
   document.getElementById("adminContent").innerHTML=`
     <div class="admin-card">
@@ -1334,6 +1454,7 @@ function saveSettings(){
 function updatePublicSettings(){
   document.getElementById("footerInstagram").textContent=
     settings.instagram?`${settings.instagram} · Córdoba`:"Home Scents · Córdoba";
+  applyWebPhotos();
 }
 
 document.addEventListener("keydown",e=>{
