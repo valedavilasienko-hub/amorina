@@ -1226,7 +1226,7 @@ function openProductForm(id=null){
 
   document.getElementById("adminContent").innerHTML=`
     <div class="admin-card">
-      <h3>${id?"Editar":"Agregar"} producto</h3>
+      <h3>${id?"Editar":"Agregar"} producto</h3><p class="notice">También podés subir directamente una imagen desde tu computadora.</p>
 
       <div class="admin-form">
         <div>
@@ -1265,8 +1265,41 @@ function openProductForm(id=null){
         </div>
 
         <div class="full">
-          <label>Ruta de imagen</label>
-          <input class="field" id="pImage" value="${escapeAttr(p.image)}" placeholder="images/producto.jpg">
+          <label>Imagen del producto</label>
+
+          <div class="photo-admin-item" style="margin-top:8px">
+            <img
+              id="pImagePreview"
+              src="${escapeAttr(p.image||"")}"
+              alt="Vista previa del producto"
+              onerror="this.style.opacity='.25'"
+            >
+
+            <input
+              class="field"
+              id="pImage"
+              value="${escapeAttr(p.image||"")}"
+              placeholder="images/producto.jpg o URL"
+              oninput="previewProductImage(this.value)"
+            >
+
+            <div class="file-upload">
+              <label class="upload-label" for="pImageFile">↑ Subir imagen</label>
+
+              <input
+                id="pImageFile"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onchange="uploadProductImage(this.files[0])"
+              >
+
+              <button type="button" class="remove-photo-btn" onclick="clearProductImage()">Quitar imagen</button>
+            </div>
+
+            <div class="photo-help">
+              Podés subir una foto descargada de tu computadora. JPG, PNG o WebP.
+            </div>
+          </div>
         </div>
 
         <div class="full">
@@ -1283,6 +1316,46 @@ function openProductForm(id=null){
       </div>
     </div>`;
 }
+
+function previewProductImage(value){
+  const img=document.getElementById("pImagePreview");
+  if(!img)return;
+  img.style.opacity="1";
+  img.src=value.trim();
+}
+
+async function uploadProductImage(file){
+  if(!file)return;
+
+  if(!file.type.startsWith("image/")){
+    alert("Seleccioná un archivo de imagen.");
+    return;
+  }
+
+  try{
+    const dataUrl=await compressImageFile(file,1400,0.86);
+    const input=document.getElementById("pImage");
+    const preview=document.getElementById("pImagePreview");
+
+    input.value=dataUrl;
+    preview.style.opacity="1";
+    preview.src=dataUrl;
+  }catch(err){
+    console.error(err);
+    alert("No se pudo procesar la imagen.");
+  }
+}
+
+function clearProductImage(){
+  const input=document.getElementById("pImage");
+  const preview=document.getElementById("pImagePreview");
+  if(input)input.value="";
+  if(preview){
+    preview.removeAttribute("src");
+    preview.style.opacity=".25";
+  }
+}
+
 function saveProduct(){
   const obj={
     id:editingProductId||Date.now(),
