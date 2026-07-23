@@ -419,6 +419,38 @@
       line-height:1.5;
       margin-top:8px;
     }
+    .file-upload{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+      margin-top:10px;
+    }
+    .file-upload input[type="file"]{
+      display:none;
+    }
+    .upload-label{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-height:42px;
+      padding:10px 15px;
+      border-radius:999px;
+      background:#efe1d4;
+      color:var(--ink);
+      font-weight:650;
+      cursor:pointer;
+      border:1px solid var(--line);
+    }
+    .upload-label:hover{background:#e8d3c2}
+    .remove-photo-btn{
+      border:1px solid var(--line);
+      background:#fff;
+      border-radius:999px;
+      min-height:42px;
+      padding:10px 15px;
+      color:#7f2d27;
+    }
     @media(max-width:700px){
       .photo-admin-grid{grid-template-columns:1fr}
     }
@@ -1330,7 +1362,7 @@ function renderAdminPhotos(){
   document.getElementById("adminContent").innerHTML=`
     <div class="admin-card">
       <h3 style="margin-top:0">Fotos de la web</h3>
-      <p class="notice">Podés cambiar las imágenes principales sin tocar el código. Pegá una URL o una ruta como <strong>images/foto.jpg</strong>.</p>
+      <p class="notice">Podés subir directamente una imagen guardada en tu computadora o, si preferís, pegar una URL/ruta. La imagen se previsualiza antes de guardar.</p>
 
       <div class="photo-admin-grid">
         ${photoAdminItem("hero1","Portada · Foto 1",p.hero1)}
@@ -1351,9 +1383,24 @@ function photoAdminItem(key,title,value){
     <div class="photo-admin-item">
       <h4>${title}</h4>
       <img id="preview_${key}" src="${escapeAttr(value)}" alt="${escapeAttr(title)}" onerror="this.style.opacity='.25'">
-      <label>Ruta o URL de la imagen</label>
-      <input class="field" id="photo_${key}" value="${escapeAttr(value)}" oninput="previewWebPhoto('${key}',this.value)">
-      <div class="photo-help">Ejemplo: images/amorina-1.jpg</div>
+
+      <label>Imagen</label>
+      <input class="field" id="photo_${key}" value="${escapeAttr(value)}" placeholder="URL, ruta o imagen subida" oninput="previewWebPhoto('${key}',this.value)">
+
+      <div class="file-upload">
+        <label class="upload-label" for="file_${key}">↑ Subir imagen</label>
+        <input
+          id="file_${key}"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onchange="uploadWebPhoto('${key}',this.files[0])"
+        >
+        <button type="button" class="remove-photo-btn" onclick="resetWebPhoto('${key}')">Restablecer</button>
+      </div>
+
+      <div class="photo-help">
+        JPG, PNG o WebP. La imagen se optimiza automáticamente antes de guardarse.
+      </div>
     </div>`;
 }
 
@@ -1364,6 +1411,68 @@ function previewWebPhoto(key,value){
   img.src=value.trim()||settings.webPhotos[key]||"";
 }
 
+async function uploadWebPhoto(key,file){
+  if(!file)return;
+
+  if(!file.type.startsWith("image/")){
+    alert("Seleccioná un archivo de imagen.");
+    return;
+  }
+
+  try{
+    const dataUrl=await compressImageFile(file,1600,0.86);
+    const input=document.getElementById(`photo_${key}`);
+    const preview=document.getElementById(`preview_${key}`);
+
+    input.value=dataUrl;
+    preview.style.opacity="1";
+    preview.src=dataUrl;
+  }catch(err){
+    console.error(err);
+    alert("No se pudo procesar la imagen.");
+  }
+}
+
+function compressImageFile(file,maxDimension=1600,quality=0.86){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+
+    reader.onerror=()=>reject(new Error("No se pudo leer el archivo."));
+    reader.onload=()=>{
+      const img=new Image();
+
+      img.onerror=()=>reject(new Error("La imagen no es válida."));
+      img.onload=()=>{
+        let width=img.width;
+        let height=img.height;
+
+        const scale=Math.min(1,maxDimension/Math.max(width,height));
+        width=Math.round(width*scale);
+        height=Math.round(height*scale);
+
+        const canvas=document.createElement("canvas");
+        canvas.width=width;
+        canvas.height=height;
+
+        const ctx=canvas.getContext("2d");
+        ctx.drawImage(img,0,0,width,height);
+
+        resolve(canvas.toDataURL("image/jpeg",quality));
+      };
+
+      img.src=reader.result;
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+function resetWebPhoto(key){
+  const fallback=DEFAULT_SETTINGS.webPhotos[key]||"";
+  document.getElementById(`photo_${key}`).value=fallback;
+  previewWebPhoto(key,fallback);
+}
+
 function saveWebPhotos(){
   settings.webPhotos={
     hero1:document.getElementById("photo_hero1").value.trim(),
@@ -1372,9 +1481,15 @@ function saveWebPhotos(){
     hero4:document.getElementById("photo_hero4").value.trim(),
     story:document.getElementById("photo_story").value.trim()
   };
-  persist();
-  applyWebPhotos();
-  alert("Fotos de la web actualizadas.");
+
+  try{
+    persist();
+    applyWebPhotos();
+    alert("Fotos de la web actualizadas.");
+  }catch(err){
+    console.error(err);
+    alert("Las imágenes ocupan demasiado espacio para guardarse en este navegador. Probá con archivos más livianos.");
+  }
 }
 
 function applyWebPhotos(){
