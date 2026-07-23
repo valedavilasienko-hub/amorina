@@ -45,6 +45,21 @@
     }
     .navlinks{display:flex;gap:32px;font-size:14px}
     .nav-actions{display:flex;align-items:center;gap:10px}
+    .city-switch{
+      display:flex;gap:6px;padding:5px;
+      border:1px solid var(--line);border-radius:999px;
+      background:rgba(255,250,245,.7);
+    }
+    .city-btn{
+      border:none;background:transparent;border-radius:999px;
+      padding:8px 13px;font-size:12px;font-weight:700;color:var(--muted);
+    }
+    .city-btn.active{background:var(--brown2);color:#fff}
+    .city-label{
+      display:inline-flex;align-items:center;gap:7px;
+      font-size:12px;font-weight:700;text-transform:uppercase;
+      letter-spacing:.12em;color:var(--muted);
+    }
     .icon-btn{
       width:44px;height:44px;border:1px solid var(--line);
       background:var(--paper);border-radius:50%;display:grid;place-items:center;
@@ -366,6 +381,8 @@
     }
     @media(max-width:700px){
       .navlinks{display:none}
+      .city-switch{order:3;width:100%;justify-content:center;margin-top:-6px}
+      .nav{height:auto;min-height:76px;flex-wrap:wrap;padding:12px 0}
       .hero{padding-top:16px}
       .hero-grid{border-radius:24px}
       .hero-copy{padding:38px 24px 34px}
@@ -467,6 +484,10 @@
       <a href="#contacto">Contacto</a>
     </nav>
     <div class="nav-actions">
+      <div class="city-switch" aria-label="Seleccionar ciudad">
+        <button class="city-btn active" id="cityBtnCordoba" onclick="setCity('cordoba')">Córdoba</button>
+        <button class="city-btn" id="cityBtnBuenosAires" onclick="setCity('buenosaires')">Buenos Aires</button>
+      </div>
       <button class="icon-btn" onclick="openCatalogWindow(event)">⌕</button>
       <button class="icon-btn cart-btn" onclick="openCart()">🛒 <span class="cart-count" id="cartCount">0</span></button>
     </div>
@@ -477,7 +498,7 @@
   <section class="hero" id="inicio">
     <div class="container hero-grid">
       <div class="hero-copy">
-        <div class="eyebrow">Home Scents · Córdoba</div>
+        <div class="eyebrow" id="heroCityLabel">Home Scents · Córdoba</div>
         <h1>Aromas que hacen hogar.</h1>
         <p>Velas, difusores y fragancias pensadas para transformar lo cotidiano en una experiencia más cálida.</p>
         <div class="cta-row">
@@ -539,7 +560,7 @@
       <small id="footerInstagram">Home Scents · Córdoba</small>
     </div>
     <div>
-      <small>© <span id="year"></span> Amorina Córdoba</small>
+      <small>© <span id="year"></span> <span id="footerCityName">Amorina Córdoba</span></small>
       <button class="admin-link" onclick="openAdmin()">Administración</button>
     </div>
   </div>
@@ -553,7 +574,7 @@
   <div class="container catalog-window-content">
     <div class="section-head">
       <div>
-        <div class="eyebrow">AMORINA · CÓRDOBA</div>
+        <div class="eyebrow" id="catalogCityLabel">AMORINA · CÓRDOBA</div>
         <h2>Catálogo</h2>
         <p>Todos los productos en un solo lugar.</p>
       </div>
@@ -693,7 +714,12 @@
   <div class="admin-shell hidden" id="adminShell">
     <aside class="sidebar">
       <span class="brand">AMORINA</span>
-      <button class="side-btn active" onclick="adminView('dashboard',this)">Dashboard</button>
+      <div class="city-label" style="padding:0 12px 8px">Administrar ciudad</div>
+      <button class="side-btn active" id="adminCordobaBtn" onclick="setAdminCity('cordoba',this)">Córdoba</button>
+      <button class="side-btn" id="adminBuenosAiresBtn" onclick="setAdminCity('buenosaires',this)">Buenos Aires</button>
+
+      <div style="height:14px"></div>
+      <button class="side-btn" onclick="adminView('dashboard',this)">Dashboard</button>
       <button class="side-btn" onclick="adminView('products',this)">Productos</button>
       <button class="side-btn" onclick="adminView('orders',this)">Pedidos</button>
       <button class="side-btn" onclick="adminView('photos',this)">Fotos web</button>
@@ -714,28 +740,28 @@
 <script>
 const DEFAULT_PRODUCTS = [
   {
-    id:1,name:"Vervain Lime",category:"Velas",price:14500,stock:10,featured:true,
+    id:1,city:"cordoba",name:"Vervain Lime",category:"Velas",price:14500,stock:10,featured:true,
     image:"images/amorina-1.jpg",
     description:"Una fragancia fresca y luminosa, ideal para espacios cotidianos.",
     sizes:["Chica","Mediana","Grande"],
     aromas:["Vervain Lime","Citrus"]
   },
   {
-    id:2,name:"Caffè Dolce",category:"Velas",price:15900,stock:8,featured:true,
+    id:2,city:"cordoba",name:"Caffè Dolce",category:"Velas",price:15900,stock:8,featured:true,
     image:"images/amorina-2.jpg",
     description:"Notas cálidas y envolventes inspiradas en café y dulzura.",
     sizes:["Mediana","Grande"],
     aromas:["Caffè Dolce"]
   },
   {
-    id:3,name:"Difusor",category:"Difusores",price:18900,stock:12,featured:true,
+    id:3,city:"cordoba",name:"Difusor",category:"Difusores",price:18900,stock:12,featured:true,
     image:"images/amorina-5.jpg",
     description:"Difusor de ambiente de aroma persistente para perfumar tus espacios.",
     sizes:["125 ml","250 ml"],
     aromas:["Coco & Limón","Vervain Lime","Ámbar"]
   },
   {
-    id:4,name:"Home Spray",category:"Home Spray",price:13200,stock:15,featured:false,
+    id:4,city:"cordoba",name:"Home Spray",category:"Home Spray",price:13200,stock:15,featured:false,
     image:"images/amorina-3.jpg",
     description:"Perfume de ambiente para renovar la sensación de un espacio.",
     sizes:["250 ml"],
@@ -744,19 +770,40 @@ const DEFAULT_PRODUCTS = [
 ];
 
 const DEFAULT_SETTINGS = {
-  whatsapp:"",
-  instagram:"",
-  pickupAddress:"Córdoba Capital",
-  shippingCost:0,
-  freeShippingFrom:0,
-  mpEndpoint:"/api/mercadopago/create-preference",
   adminPassword:"amorina2026",
-  webPhotos:{
-    hero1:"images/amorina-3.jpg",
-    hero2:"images/amorina-5.jpg",
-    hero3:"images/amorina-1.jpg",
-    hero4:"images/amorina-2.jpg",
-    story:"images/amorina-4.jpg"
+  mpEndpoint:"/api/mercadopago/create-preference",
+  activeCity:"cordoba",
+  cities:{
+    cordoba:{
+      label:"Córdoba",
+      whatsapp:"",
+      instagram:"",
+      pickupAddress:"Córdoba Capital",
+      shippingCost:0,
+      freeShippingFrom:0,
+      webPhotos:{
+        hero1:"images/amorina-3.jpg",
+        hero2:"images/amorina-5.jpg",
+        hero3:"images/amorina-1.jpg",
+        hero4:"images/amorina-2.jpg",
+        story:"images/amorina-4.jpg"
+      }
+    },
+    buenosaires:{
+      label:"Buenos Aires",
+      whatsapp:"",
+      instagram:"",
+      pickupAddress:"Buenos Aires",
+      shippingCost:0,
+      freeShippingFrom:0,
+      webPhotos:{
+        hero1:"images/amorina-1.jpg",
+        hero2:"images/amorina-2.jpg",
+        hero3:"images/amorina-4.jpg",
+        hero4:"images/amorina-5.jpg",
+        story:"images/amorina-3.jpg"
+      }
+    }
   }
 };
 
@@ -765,20 +812,41 @@ const savedSettings = JSON.parse(localStorage.getItem("amorina_settings") || "{}
 let settings = {
   ...DEFAULT_SETTINGS,
   ...savedSettings,
-  webPhotos:{...DEFAULT_SETTINGS.webPhotos,...(savedSettings.webPhotos||{})}
+  cities:{
+    cordoba:{
+      ...DEFAULT_SETTINGS.cities.cordoba,
+      ...(savedSettings.cities?.cordoba||{}),
+      webPhotos:{
+        ...DEFAULT_SETTINGS.cities.cordoba.webPhotos,
+        ...(savedSettings.cities?.cordoba?.webPhotos||{})
+      }
+    },
+    buenosaires:{
+      ...DEFAULT_SETTINGS.cities.buenosaires,
+      ...(savedSettings.cities?.buenosaires||{}),
+      webPhotos:{
+        ...DEFAULT_SETTINGS.cities.buenosaires.webPhotos,
+        ...(savedSettings.cities?.buenosaires?.webPhotos||{})
+      }
+    }
+  }
 };
 let orders = JSON.parse(localStorage.getItem("amorina_orders") || "[]");
 let cart = JSON.parse(localStorage.getItem("amorina_cart") || "[]");
 
 let activeCategory="Todos";
+let activeCity=settings.activeCity||"cordoba";
 let editingProductId=null;
 let detailProductId=null;
 let detailQty=1;
 let detailSize="";
 let detailAroma="";
+let adminCity="cordoba";
+let currentAdminView="dashboard";
 
 products=products.map(p=>({
   ...p,
+  city:p.city||"cordoba",
   description:p.description||"",
   sizes:Array.isArray(p.sizes)?p.sizes:[],
   aromas:Array.isArray(p.aromas)?p.aromas:[]
@@ -805,7 +873,33 @@ function escapeHtml(s=""){
 }
 function escapeAttr(s=""){return escapeHtml(s)}
 function escapeJs(s=""){return String(s).replace(/\\/g,"\\\\").replace(/'/g,"\\'")}
-function categories(){return ["Todos",...new Set(products.map(p=>p.category).filter(Boolean))]}
+function categories(){return ["Todos",...new Set(products.filter(p=>p.city===activeCity).map(p=>p.category).filter(Boolean))]}
+
+
+function currentCitySettings(){
+  return settings.cities[activeCity] || settings.cities.cordoba;
+}
+
+function setCity(city){
+  if(!settings.cities[city])return;
+  activeCity=city;
+  settings.activeCity=city;
+  persist();
+
+  document.getElementById("cityBtnCordoba")?.classList.toggle("active",city==="cordoba");
+  document.getElementById("cityBtnBuenosAires")?.classList.toggle("active",city==="buenosaires");
+
+  const label=settings.cities[city].label;
+  document.getElementById("heroCityLabel").textContent=`Home Scents · ${label}`;
+  document.getElementById("catalogCityLabel").textContent=`AMORINA · ${label.toUpperCase()}`;
+  document.getElementById("footerCityName").textContent=`Amorina ${label}`;
+
+  activeCategory="Todos";
+  renderFilters();
+  renderProducts();
+  renderFeatured();
+  updatePublicSettings();
+}
 
 function renderFilters(){
   document.getElementById("categoryFilters").innerHTML=categories().map(c=>
@@ -820,7 +914,7 @@ function setCategory(c){
 function renderProducts(){
   const q=(document.getElementById("catalogSearch")?.value||"").toLowerCase().trim();
   const sort=document.getElementById("catalogSort")?.value||"featured";
-  let list=products.filter(p=>(activeCategory==="Todos"||p.category===activeCategory)&&p.name.toLowerCase().includes(q));
+  let list=products.filter(p=>p.city===activeCity&&(activeCategory==="Todos"||p.category===activeCategory)&&p.name.toLowerCase().includes(q));
 
   if(sort==="low")list.sort((a,b)=>a.price-b.price);
   if(sort==="high")list.sort((a,b)=>b.price-a.price);
@@ -831,8 +925,8 @@ function renderProducts(){
   document.getElementById("productGrid").innerHTML=list.map(productCard).join("")||"<p>No encontramos productos.</p>";
 }
 function renderFeatured(){
-  let list=products.filter(p=>p.featured);
-  if(!list.length)list=products.slice(0,4);
+  let list=products.filter(p=>p.city===activeCity&&p.featured);
+  if(!list.length)list=products.filter(p=>p.city===activeCity).slice(0,4);
   document.getElementById("featuredGrid").innerHTML=list.slice(0,4).map(productCard).join("");
 }
 function productCard(p){
@@ -1032,6 +1126,7 @@ function checkoutData(){
 function orderSnapshot(data,payment){
   return {
     id:Date.now(),
+    city:activeCity,
     createdAt:new Date().toISOString(),
     status:"Nuevo",
     payment,
@@ -1052,7 +1147,7 @@ function saveOrder(order){
 }
 
 function whatsappNumber(){
-  return (settings.whatsapp||"").replace(/\D/g,"");
+  return (currentCitySettings().whatsapp||"").replace(/\D/g,"");
 }
 function openGeneralWhatsApp(){
   const n=whatsappNumber();
@@ -1094,7 +1189,7 @@ function buildWhatsAppMessage(data){
     msg+=`*Barrio/localidad:* ${data.area||"-"}\n`;
   }else{
     msg+=`*Entrega:* Retiro\n`;
-    msg+=`*Punto de retiro:* ${settings.pickupAddress||"-"}\n`;
+    msg+=`*Punto de retiro:* ${currentCitySettings().pickupAddress||"-"}\n`;
   }
 
   if(data.notes)msg+=`*Aclaraciones:* ${data.notes}\n`;
@@ -1161,10 +1256,17 @@ function loginAdmin(){
 
   document.getElementById("adminLogin").classList.add("hidden");
   document.getElementById("adminShell").classList.remove("hidden");
+  adminCity="cordoba";
+  currentAdminView="dashboard";
+  document.getElementById("adminCordobaBtn")?.classList.add("active");
+  document.getElementById("adminBuenosAiresBtn")?.classList.remove("active");
   renderAdminDashboard();
 }
 function adminView(view,btn){
-  document.querySelectorAll(".side-btn").forEach(b=>b.classList.remove("active"));
+  currentAdminView=view;
+  document.querySelectorAll(".sidebar .side-btn").forEach(b=>{
+    if(!["adminCordobaBtn","adminBuenosAiresBtn"].includes(b.id))b.classList.remove("active");
+  });
   if(btn)btn.classList.add("active");
 
   const names={
@@ -1184,13 +1286,32 @@ function adminView(view,btn){
   if(view==="photos")renderAdminPhotos();
   if(view==="settings")renderAdminSettings();
 }
+
+function setAdminCity(city,btn){
+  if(!settings.cities[city])return;
+  adminCity=city;
+
+  document.getElementById("adminCordobaBtn")?.classList.toggle("active",city==="cordoba");
+  document.getElementById("adminBuenosAiresBtn")?.classList.toggle("active",city==="buenosaires");
+
+  if(currentAdminView==="dashboard")renderAdminDashboard();
+  if(currentAdminView==="products")renderAdminProducts();
+  if(currentAdminView==="orders")renderAdminOrders();
+  if(currentAdminView==="photos")renderAdminPhotos();
+  if(currentAdminView==="settings")renderAdminSettings();
+}
+
+function adminCitySettings(){
+  return settings.cities[adminCity] || settings.cities.cordoba;
+}
+
 function renderAdminDashboard(){
   document.getElementById("adminContent").innerHTML=`
     <div class="stats">
-      <div class="stat"><small>Productos</small><strong>${products.length}</strong></div>
-      <div class="stat"><small>Pedidos</small><strong>${orders.length}</strong></div>
-      <div class="stat"><small>Sin stock</small><strong>${products.filter(p=>p.stock<=0).length}</strong></div>
-      <div class="stat"><small>Destacados</small><strong>${products.filter(p=>p.featured).length}</strong></div>
+      <div class="stat"><small>Ciudad</small><strong>${settings.cities[adminCity].label}</strong></div>
+      <div class="stat"><small>Productos</small><strong>${products.filter(p=>p.city===adminCity).length}</strong></div>
+      <div class="stat"><small>Pedidos</small><strong>${orders.filter(o=>(o.city||"cordoba")===adminCity).length}</strong></div>
+      <div class="stat"><small>Sin stock</small><strong>${products.filter(p=>p.city===adminCity&&p.stock<=0).length}</strong></div>
     </div>`;
 }
 function renderAdminProducts(){
@@ -1201,7 +1322,7 @@ function renderAdminProducts(){
           <tr><th>Producto</th><th>Categoría</th><th>Precio</th><th>Stock</th><th>Destacado</th><th></th></tr>
         </thead>
         <tbody>
-          ${products.map(p=>`
+          ${products.filter(p=>p.city===adminCity).map(p=>`
             <tr>
               <td>${escapeHtml(p.name)}</td>
               <td>${escapeHtml(p.category)}</td>
@@ -1222,7 +1343,7 @@ function openProductForm(id=null){
 
   const p=id
     ?products.find(x=>x.id===id)
-    :{name:"",category:"",price:"",stock:"",featured:false,image:"",description:"",sizes:[],aromas:[]};
+    :{city:adminCity,name:"",category:"",price:"",stock:"",featured:false,image:"",description:"",sizes:[],aromas:[]};
 
   document.getElementById("adminContent").innerHTML=`
     <div class="admin-card">
@@ -1359,6 +1480,7 @@ function clearProductImage(){
 function saveProduct(){
   const obj={
     id:editingProductId||Date.now(),
+    city:adminCity,
     name:document.getElementById("pName").value.trim(),
     category:document.getElementById("pCategory").value.trim(),
     price:Number(document.getElementById("pPrice").value||0),
@@ -1405,7 +1527,7 @@ function renderAdminOrders(){
           <tr><th>Pedido</th><th>Cliente</th><th>Entrega</th><th>Total</th><th>Pago</th><th>Estado</th></tr>
         </thead>
         <tbody>
-          ${orders.map(o=>`
+          ${orders.filter(o=>(o.city||"cordoba")===adminCity).map(o=>`
             <tr>
               <td>#${o.id}</td>
               <td>${escapeHtml(o.customer.name)}</td>
@@ -1431,7 +1553,7 @@ function changeOrderStatus(id,status){
 }
 
 function renderAdminPhotos(){
-  const p=settings.webPhotos||DEFAULT_SETTINGS.webPhotos;
+  const p=adminCitySettings().webPhotos;
   document.getElementById("adminContent").innerHTML=`
     <div class="admin-card">
       <h3 style="margin-top:0">Fotos de la web</h3>
@@ -1541,13 +1663,13 @@ function compressImageFile(file,maxDimension=1600,quality=0.86){
 }
 
 function resetWebPhoto(key){
-  const fallback=DEFAULT_SETTINGS.webPhotos[key]||"";
+  const fallback=DEFAULT_SETTINGS.cities[adminCity].webPhotos[key]||"";
   document.getElementById(`photo_${key}`).value=fallback;
   previewWebPhoto(key,fallback);
 }
 
 function saveWebPhotos(){
-  settings.webPhotos={
+  settings.cities[adminCity].webPhotos={
     hero1:document.getElementById("photo_hero1").value.trim(),
     hero2:document.getElementById("photo_hero2").value.trim(),
     hero3:document.getElementById("photo_hero3").value.trim(),
@@ -1566,7 +1688,7 @@ function saveWebPhotos(){
 }
 
 function applyWebPhotos(){
-  const p=settings.webPhotos||DEFAULT_SETTINGS.webPhotos;
+  const p=currentCitySettings().webPhotos;
   const map=[
     ["webHero1",p.hero1],
     ["webHero2",p.hero2],
@@ -1582,41 +1704,45 @@ function applyWebPhotos(){
 }
 
 function renderAdminSettings(){
+  const s=adminCitySettings();
+
   document.getElementById("adminContent").innerHTML=`
     <div class="admin-card">
+      <h3 style="margin-top:0">Configuración · ${settings.cities[adminCity].label}</h3>
+
       <div class="admin-form">
         <div>
           <label>WhatsApp con código de país</label>
-          <input class="field" id="sWhatsapp" value="${escapeAttr(settings.whatsapp)}" placeholder="549351...">
+          <input class="field" id="sWhatsapp" value="${escapeAttr(s.whatsapp)}" placeholder="549351...">
         </div>
 
         <div>
-          <label>Instagram Córdoba</label>
-          <input class="field" id="sInstagram" value="${escapeAttr(settings.instagram)}" placeholder="@amorina...">
+          <label>Instagram</label>
+          <input class="field" id="sInstagram" value="${escapeAttr(s.instagram)}" placeholder="@amorina...">
         </div>
 
         <div class="full">
           <label>Dirección de retiro</label>
-          <input class="field" id="sPickup" value="${escapeAttr(settings.pickupAddress)}">
+          <input class="field" id="sPickup" value="${escapeAttr(s.pickupAddress)}">
         </div>
 
         <div>
           <label>Costo de envío</label>
-          <input class="field" id="sShipping" type="number" value="${settings.shippingCost}">
+          <input class="field" id="sShipping" type="number" value="${s.shippingCost}">
         </div>
 
         <div>
           <label>Envío gratis desde</label>
-          <input class="field" id="sFree" type="number" value="${settings.freeShippingFrom}">
+          <input class="field" id="sFree" type="number" value="${s.freeShippingFrom}">
         </div>
 
         <div class="full">
-          <label>Endpoint Mercado Pago</label>
+          <label>Endpoint Mercado Pago (compartido)</label>
           <input class="field" id="sMp" value="${escapeAttr(settings.mpEndpoint)}">
         </div>
 
         <div class="full">
-          <label>Contraseña admin</label>
+          <label>Contraseña admin (compartida)</label>
           <input class="field" id="sPass" type="password" value="${escapeAttr(settings.adminPassword)}">
         </div>
 
@@ -1627,21 +1753,34 @@ function renderAdminSettings(){
     </div>`;
 }
 function saveSettings(){
-  settings.whatsapp=document.getElementById("sWhatsapp").value.trim();
-  settings.instagram=document.getElementById("sInstagram").value.trim();
-  settings.pickupAddress=document.getElementById("sPickup").value.trim();
-  settings.shippingCost=Number(document.getElementById("sShipping").value||0);
-  settings.freeShippingFrom=Number(document.getElementById("sFree").value||0);
+  const s=settings.cities[adminCity];
+
+  s.whatsapp=document.getElementById("sWhatsapp").value.trim();
+  s.instagram=document.getElementById("sInstagram").value.trim();
+  s.pickupAddress=document.getElementById("sPickup").value.trim();
+  s.shippingCost=Number(document.getElementById("sShipping").value||0);
+  s.freeShippingFrom=Number(document.getElementById("sFree").value||0);
+
   settings.mpEndpoint=document.getElementById("sMp").value.trim();
   settings.adminPassword=document.getElementById("sPass").value||settings.adminPassword;
 
   persist();
   updatePublicSettings();
-  alert("Configuración guardada.");
+  alert(`Configuración de ${settings.cities[adminCity].label} guardada.`);
 }
 function updatePublicSettings(){
+  const s=currentCitySettings();
+
   document.getElementById("footerInstagram").textContent=
-    settings.instagram?`${settings.instagram} · Córdoba`:"Home Scents · Córdoba";
+    s.instagram?`${s.instagram} · ${s.label}`:`Home Scents · ${s.label}`;
+
+  document.getElementById("heroCityLabel").textContent=`Home Scents · ${s.label}`;
+  document.getElementById("catalogCityLabel").textContent=`AMORINA · ${s.label.toUpperCase()}`;
+  document.getElementById("footerCityName").textContent=`Amorina ${s.label}`;
+
+  document.getElementById("cityBtnCordoba")?.classList.toggle("active",activeCity==="cordoba");
+  document.getElementById("cityBtnBuenosAires")?.classList.toggle("active",activeCity==="buenosaires");
+
   applyWebPhotos();
 }
 
@@ -1654,6 +1793,7 @@ document.addEventListener("keydown",e=>{
 });
 
 document.getElementById("year").textContent=new Date().getFullYear();
+activeCity=settings.activeCity||"cordoba";
 renderFilters();
 renderProducts();
 renderFeatured();
