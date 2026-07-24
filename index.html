@@ -831,11 +831,12 @@
       <h1>AMORINA</h1>
       <p>Portal privado de administración</p>
       <div class="stack">
+        <input class="field" id="adminEmail" type="email" placeholder="Email de administrador">
         <input class="field" id="adminPass" type="password" placeholder="Contraseña">
         <button class="btn btn-primary" onclick="loginAdmin()">Ingresar</button>
         <button class="btn btn-soft" onclick="closeAdmin()">Volver a la tienda</button>
       </div>
-      <p class="notice">Para producción, conectá este portal con Firebase Authentication.</p>
+      <p class="notice">Acceso protegido con Supabase Auth.</p>
     </div>
   </div>
 
@@ -852,6 +853,7 @@
       <button class="side-btn" onclick="adminView('orders',this)">Pedidos</button>
       <button class="side-btn" onclick="adminView('photos',this)">Fotos web</button>
       <button class="side-btn" onclick="adminView('settings',this)">Configuración</button>
+      <button class="side-btn" onclick="logoutAdmin()">Cerrar sesión</button>
       <button class="side-btn" onclick="closeAdmin()">← Volver a la tienda</button>
     </aside>
 
@@ -865,7 +867,13 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+const SUPABASE_URL = "https://mkintrylccmldyaycivt.supabase.co";
+const SUPABASE_KEY = "sb_publishable_mX6RGRhCcXfXdHZCmTzPXA_RN4bgo-s";
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const STORAGE_BUCKET = "amorina-images";
+
 const DEFAULT_PRODUCTS = [
   {
     id:1,city:"cordoba",name:"Vervain Lime",category:"Velas",price:14500,stock:10,featured:true,
@@ -995,6 +1003,120 @@ function persist(){
   localStorage.setItem("amorina_settings",JSON.stringify(settings));
   localStorage.setItem("amorina_orders",JSON.stringify(orders));
   localStorage.setItem("amorina_cart",JSON.stringify(cart));
+}
+
+async function loadFromSupabase(){
+  try{
+    const productRes = await supabaseClient.from("products").select("*").order("id",{ascending:true});
+    const settingsRes = await supabaseClient.from("settings").select("*");
+    const ordersRes = await supabaseClient.from("orders").select("*").order("created_at",{ascending:false}).limit(500);
+
+    if(productRes.error) throw productRes.error;
+    if(settingsRes.error) throw settingsRes.error;
+    if(ordersRes.error) throw ordersRes.error;
+
+    if(Array.isArray(productRes.data) && productRes.data.length){
+      products = productRes.data.map(row=>({
+        id:Number(row.id),
+        city:row.city||"cordoba",
+        name:row.name||"",
+        category:row.category||"",
+        price:Number(row.price||0),
+        stock:Number(row.stock||0),
+        description:row.description||"",
+        image:row.image||"",
+        sizes:Array.isArray(row.sizes)?row.sizes:[],
+        aromas:Array.isArray(row.aromas)?row.aromas:[],
+        featured:Boolean(row.featured)
+      }));
+    }
+
+    if(Array.isArray(settingsRes.data)){
+      settingsRes.data.forEach(row=>{
+        if(!settings.cities[row.city]) return;
+        const s=settings.cities[row.city];
+        s.whatsapp=row.whatsapp||"";
+        s.instagram=row.instagram||"";
+        s.pickupAddress=row.pickup_address||s.pickupAddress;
+        s.shippingCost=Number(row.shipping_cost||0);
+        s.freeShippingFrom=Number(row.free_shipping_from||0);
+        s.webPhotos={
+          hero1:row.hero1||s.webPhotos.hero1,
+          hero2:row.hero2||s.webPhotos.hero2,
+          hero3:row.hero3||s.webPhotos.hero3,
+          hero4:row.hero4||s.webPhotos.hero4,
+          story:row.story_image||s.webPhotos.story
+        };
+      });
+    }
+
+    if(Array.isArray(ordersRes.data)){
+      orders = ordersRes.data.map(row=>({
+        id:Number(row.id),
+        city:row.city||"cordoba",
+        createdAt:row.created_at,
+        status:row.status||"Nuevo",
+        payment:row.payment||"",
+        customer:row.customer||{},
+        items:Array.isArray(row.items)?row.items:[],
+        total:Number(row.total||0)
+      }));
+    }
+
+    persist();
+    renderFilters();
+    renderProducts();
+    renderFeatured();
+    renderCart();
+    updatePublicSettings();
+  }catch(err){
+    console.warn("Supabase no pudo cargar. Se usa la copia local.",err);
+  }
+}
+
+async function uploadImageToSupabase(file,folder){
+  if(!file) throw new Error("No se recibió una imagen.");
+
+  const ext=(file.name.split(".").pop()||"jpg")
+    .toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
+
+  const filename=`${Date.now()}-${Math.random().toString(36).slice(2,9)}.${ext}`;
+  const path=`${folder}/${filename}`;
+
+  const {error}=await supabaseClient.storage
+    .from(STORAGE_BUCKET)
+    .upload(path,file,{cacheControl:"3600",upsert:false});
+
+  if(error) throw error;
+
+  const {data}=supabaseClient.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+  if(!data?.publicUrl) throw new Error("No se pudo obtener la URL pública.");
+
+  return data.publicUrl;
+}
+
+async function upsertSettingsToSupabase(city){
+  const s=settings.cities[city];
+
+  const row={
+    city,
+    whatsapp:s.whatsapp||"",
+    instagram:s.instagram||"",
+    pickup_address:s.pickupAddress||"",
+    shipping_cost:Number(s.shippingCost||0),
+    free_shipping_from:Number(s.freeShippingFrom||0),
+    hero1:s.webPhotos?.hero1||"",
+    hero2:s.webPhotos?.hero2||"",
+    hero3:s.webPhotos?.hero3||"",
+    hero4:s.webPhotos?.hero4||"",
+    story_image:s.webPhotos?.story||""
+  };
+
+  const {error}=await supabaseClient
+    .from("settings")
+    .upsert(row,{onConflict:"city"});
+
+  if(error) throw error;
 }
 function escapeHtml(s=""){
   return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
@@ -1269,9 +1391,26 @@ function orderSnapshot(data,payment){
     total:cartTotal()
   };
 }
-function saveOrder(order){
+async function saveOrder(order){
   orders.unshift(order);
   persist();
+
+  const row={
+    id:order.id,
+    city:order.city||activeCity,
+    created_at:order.createdAt||new Date().toISOString(),
+    status:order.status||"Nuevo",
+    payment:order.payment||"",
+    customer:order.customer||{},
+    items:order.items||[],
+    total:Number(order.total||0)
+  };
+
+  const {error}=await supabaseClient.from("orders").insert(row);
+
+  if(error){
+    console.warn("No se pudo guardar el pedido en Supabase:",error);
+  }
 }
 
 
@@ -1338,7 +1477,7 @@ function buildWhatsAppMessage(data){
 
   return msg;
 }
-function sendWhatsAppOrder(){
+async function sendWhatsAppOrder(){
   try{
     const data=checkoutData();
     const n=whatsappNumber();
@@ -1346,7 +1485,7 @@ function sendWhatsAppOrder(){
     if(!n)return alert("Configurá el WhatsApp desde Administración.");
 
     const order=orderSnapshot(data,"WhatsApp / pendiente");
-    saveOrder(order);
+    await saveOrder(order);
 
     window.open(`https://wa.me/${n}?text=${encodeURIComponent(buildWhatsAppMessage(data))}`,"_blank");
   }catch(e){
@@ -1376,34 +1515,69 @@ async function payMercadoPago(){
 
     if(!url)throw new Error("El backend no devolvió el enlace de pago.");
 
-    saveOrder(order);
+    await saveOrder(order);
     window.location.href=url;
   }catch(e){
     alert(e.message);
   }
 }
 
-function openAdmin(){
+async function openAdmin(){
   document.getElementById("adminPanel").classList.add("show");
   document.body.style.overflow="hidden";
+
+  const {data}=await supabaseClient.auth.getSession();
+
+  if(data?.session){
+    showAdminShell();
+  }else{
+    document.getElementById("adminLogin").classList.remove("hidden");
+    document.getElementById("adminShell").classList.add("hidden");
+  }
 }
+
 function closeAdmin(){
   document.getElementById("adminPanel").classList.remove("show");
   document.body.style.overflow="";
 }
-function loginAdmin(){
-  if(document.getElementById("adminPass").value!==settings.adminPassword){
-    return alert("Contraseña incorrecta.");
+
+async function loginAdmin(){
+  const email=document.getElementById("adminEmail").value.trim();
+  const password=document.getElementById("adminPass").value;
+
+  if(!email||!password){
+    return alert("Completá email y contraseña.");
   }
 
+  const {error}=await supabaseClient.auth.signInWithPassword({email,password});
+
+  if(error){
+    return alert("No se pudo iniciar sesión: "+error.message);
+  }
+
+  showAdminShell();
+  await loadFromSupabase();
+}
+
+function showAdminShell(){
   document.getElementById("adminLogin").classList.add("hidden");
   document.getElementById("adminShell").classList.remove("hidden");
+
   adminCity="cordoba";
   currentAdminView="dashboard";
+
   document.getElementById("adminCordobaBtn")?.classList.add("active");
   document.getElementById("adminBuenosAiresBtn")?.classList.remove("active");
+
   renderAdminDashboard();
 }
+
+async function logoutAdmin(){
+  await supabaseClient.auth.signOut();
+  document.getElementById("adminShell").classList.add("hidden");
+  document.getElementById("adminLogin").classList.remove("hidden");
+}
+
 function adminView(view,btn){
   currentAdminView=view;
   document.querySelectorAll(".sidebar .side-btn").forEach(b=>{
@@ -1587,25 +1761,25 @@ function previewProductImage(value){
   img.src=value.trim();
 }
 
-async function uploadProductImage(file){
+async async function uploadProductImage(file){
   if(!file)return;
 
   if(!file.type.startsWith("image/")){
-    alert("Seleccioná un archivo de imagen.");
-    return;
+    return alert("Seleccioná un archivo de imagen.");
   }
 
   try{
-    const dataUrl=await compressImageFile(file,1400,0.86);
     const input=document.getElementById("pImage");
     const preview=document.getElementById("pImagePreview");
 
-    input.value=dataUrl;
+    const url=await uploadImageToSupabase(file,`${adminCity}/productos`);
+
+    input.value=url;
     preview.style.opacity="1";
-    preview.src=dataUrl;
+    preview.src=url;
   }catch(err){
     console.error(err);
-    alert("No se pudo procesar la imagen.");
+    alert("No se pudo subir la imagen: "+(err.message||err));
   }
 }
 
@@ -1619,7 +1793,7 @@ function clearProductImage(){
   }
 }
 
-function saveProduct(){
+async function saveProduct(){
   const obj={
     id:editingProductId||Date.now(),
     city:adminCity,
@@ -1634,7 +1808,27 @@ function saveProduct(){
     featured:document.getElementById("pFeatured").checked
   };
 
-  if(!obj.name||!obj.category)return alert("Completá nombre y categoría.");
+  if(!obj.name||!obj.category){
+    return alert("Completá nombre y categoría.");
+  }
+
+  const {error}=await supabaseClient.from("products").upsert({
+    id:obj.id,
+    city:obj.city,
+    name:obj.name,
+    category:obj.category,
+    price:obj.price,
+    stock:obj.stock,
+    description:obj.description,
+    image:obj.image,
+    sizes:obj.sizes,
+    aromas:obj.aromas,
+    featured:obj.featured
+  },{onConflict:"id"});
+
+  if(error){
+    return alert("No se pudo guardar el producto: "+error.message);
+  }
 
   if(editingProductId){
     products=products.map(p=>p.id===editingProductId?obj:p);
@@ -1647,9 +1841,18 @@ function saveProduct(){
   renderProducts();
   renderFeatured();
   renderAdminProducts();
+
+  alert("Producto guardado.");
 }
-function deleteProduct(id){
+
+async function deleteProduct(id){
   if(!confirm("¿Eliminar este producto?"))return;
+
+  const {error}=await supabaseClient.from("products").delete().eq("id",id);
+
+  if(error){
+    return alert("No se pudo eliminar: "+error.message);
+  }
 
   products=products.filter(p=>p.id!==id);
   cart=cart.filter(i=>i.id!==id);
@@ -1661,6 +1864,7 @@ function deleteProduct(id){
   renderCart();
   renderAdminProducts();
 }
+
 function renderAdminOrders(){
   document.getElementById("adminContent").innerHTML=`
     <div class="admin-card">
@@ -1688,7 +1892,16 @@ function renderAdminOrders(){
       </table>
     </div>`;
 }
-function changeOrderStatus(id,status){
+async function changeOrderStatus(id,status){
+  const {error}=await supabaseClient
+    .from("orders")
+    .update({status})
+    .eq("id",id);
+
+  if(error){
+    return alert("No se pudo actualizar el pedido: "+error.message);
+  }
+
   const o=orders.find(x=>x.id===id);
   if(o)o.status=status;
   persist();
@@ -1698,7 +1911,7 @@ function renderAdminPhotos(){
   const p=adminCitySettings().webPhotos;
   document.getElementById("adminContent").innerHTML=`
     <div class="admin-card">
-      <h3 style="margin-top:0">Fotos de la web</h3><p class="notice" style="background:#fff3dc;padding:12px;border-radius:12px"><strong>Importante:</strong> Las imágenes que subís ahora quedan guardadas solo en el navegador donde las cargaste. Para que aparezcan también en el celular y en otros dispositivos hay que conectarlas a almacenamiento en la nube.</p>
+      <h3 style="margin-top:0">Fotos de la web</h3><p class="notice" style="background:#fff3dc;padding:12px;border-radius:12px"><strong>Importante:</strong> Las imágenes se suben a Supabase Storage y quedan disponibles también en celular y otros dispositivos.</p>
       <p class="notice">Podés subir directamente una imagen guardada en tu computadora o, si preferís, pegar una URL/ruta. La imagen se previsualiza antes de guardar.</p>
 
       <div class="photo-admin-grid">
@@ -1748,25 +1961,25 @@ function previewWebPhoto(key,value){
   img.src=value.trim()||settings.webPhotos[key]||"";
 }
 
-async function uploadWebPhoto(key,file){
+async async function uploadWebPhoto(key,file){
   if(!file)return;
 
   if(!file.type.startsWith("image/")){
-    alert("Seleccioná un archivo de imagen.");
-    return;
+    return alert("Seleccioná un archivo de imagen.");
   }
 
   try{
-    const dataUrl=await compressImageFile(file,1600,0.86);
     const input=document.getElementById(`photo_${key}`);
     const preview=document.getElementById(`preview_${key}`);
 
-    input.value=dataUrl;
+    const url=await uploadImageToSupabase(file,`${adminCity}/web`);
+
+    input.value=url;
     preview.style.opacity="1";
-    preview.src=dataUrl;
+    preview.src=url;
   }catch(err){
     console.error(err);
-    alert("No se pudo procesar la imagen.");
+    alert("No se pudo subir la imagen: "+(err.message||err));
   }
 }
 
@@ -1810,7 +2023,7 @@ function resetWebPhoto(key){
   previewWebPhoto(key,fallback);
 }
 
-function saveWebPhotos(){
+async function saveWebPhotos(){
   settings.cities[adminCity].webPhotos={
     hero1:document.getElementById("photo_hero1").value.trim(),
     hero2:document.getElementById("photo_hero2").value.trim(),
@@ -1820,12 +2033,13 @@ function saveWebPhotos(){
   };
 
   try{
+    await upsertSettingsToSupabase(adminCity);
     persist();
     applyWebPhotos();
-    alert("Fotos de la web actualizadas.");
+    alert("Fotos actualizadas y sincronizadas.");
   }catch(err){
     console.error(err);
-    alert("Las imágenes ocupan demasiado espacio para guardarse en este navegador. Probá con archivos más livianos.");
+    alert("No se pudieron guardar las fotos: "+(err.message||err));
   }
 }
 
@@ -1850,7 +2064,7 @@ function renderAdminSettings(){
 
   document.getElementById("adminContent").innerHTML=`
     <div class="admin-card">
-      <h3 style="margin-top:0">Configuración · ${settings.cities[adminCity].label}</h3>
+      <h3 style="margin-top:0">Configuración · ${settings.cities[adminCity].label}</h3><p class="notice">El acceso del administrador ahora se gestiona con Supabase Auth.</p>
 
       <div class="admin-form">
         <div>
@@ -1883,18 +2097,13 @@ function renderAdminSettings(){
           <input class="field" id="sMp" value="${escapeAttr(settings.mpEndpoint)}">
         </div>
 
-        <div class="full">
-          <label>Contraseña admin (compartida)</label>
-          <input class="field" id="sPass" type="password" value="${escapeAttr(settings.adminPassword)}">
-        </div>
-
-        <div class="full">
+<div class="full">
           <button class="btn btn-primary" onclick="saveSettings()">Guardar configuración</button>
         </div>
       </div>
     </div>`;
 }
-function saveSettings(){
+async function saveSettings(){
   const s=settings.cities[adminCity];
 
   s.whatsapp=document.getElementById("sWhatsapp").value.trim();
@@ -1904,12 +2113,18 @@ function saveSettings(){
   s.freeShippingFrom=Number(document.getElementById("sFree").value||0);
 
   settings.mpEndpoint=document.getElementById("sMp").value.trim();
-  settings.adminPassword=document.getElementById("sPass").value||settings.adminPassword;
 
-  persist();
-  updatePublicSettings();
-  alert(`Configuración de ${settings.cities[adminCity].label} guardada.`);
+  try{
+    await upsertSettingsToSupabase(adminCity);
+    persist();
+    updatePublicSettings();
+    alert(`Configuración de ${settings.cities[adminCity].label} guardada.`);
+  }catch(err){
+    console.error(err);
+    alert("No se pudo guardar la configuración: "+(err.message||err));
+  }
 }
+
 function updatePublicSettings(){
   const s=currentCitySettings();
 
@@ -1938,6 +2153,7 @@ renderProducts();
 renderFeatured();
 renderCart();
 updatePublicSettings();
+loadFromSupabase();
 </script>
 </body>
 </html>
