@@ -560,7 +560,6 @@
   <div class="container footer-row">
     <div>
       <div class="brand">AMORINA</div>
-      <a id="footerInstagramLink" href="#" target="_blank" rel="noopener"><small id="footerInstagram">Home Scents · Córdoba</small></a>
     </div>
     <div>
       <small>© <span id="year"></span> <span id="footerCityName">Amorina Córdoba</span></small>
@@ -1787,16 +1786,6 @@ function saveSettings(){
 }
 function updatePublicSettings(){
   const s=currentCitySettings();
-
-  const footerInstagram=document.getElementById("footerInstagram");
-  const footerInstagramLink=document.getElementById("footerInstagramLink");
-
-  footerInstagram.textContent=
-    s.instagram?`${s.instagram} · ${s.label}`:`Home Scents · ${s.label}`;
-
-  const igUrl=instagramUrl();
-  footerInstagramLink.href=igUrl||"#";
-  footerInstagramLink.onclick=igUrl?null:(e=>{e.preventDefault();alert("Configurá el Instagram de esta ciudad desde Administración.");});
 
   document.getElementById("heroCityLabel").textContent=`Home Scents · ${s.label}`;
   document.getElementById("catalogCityLabel").textContent=`AMORINA · ${s.label.toUpperCase()}`;
