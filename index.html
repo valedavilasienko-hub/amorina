@@ -597,6 +597,29 @@
   footer{padding:30px 0 38px}
 }
 
+
+    .discount-badge{
+      position:absolute;right:14px;top:14px;
+      background:#8b3f2f;color:#fff;
+      padding:7px 10px;border-radius:999px;
+      font-size:11px;font-weight:800;letter-spacing:.04em;
+      box-shadow:0 6px 16px rgba(80,35,25,.18);
+      z-index:2;
+    }
+    .price-wrap{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:16px}
+    .old-price{
+      color:#9a887a;text-decoration:line-through;
+      font-size:13px;font-weight:500;
+    }
+    .new-price{font-weight:800;color:var(--brown2)}
+    .discount-text{
+      font-size:11px;font-weight:800;color:#8b3f2f;
+      text-transform:uppercase;letter-spacing:.05em;
+    }
+    .product-detail-price .old-price{font-size:15px}
+    .product-detail-price .new-price{font-size:27px}
+    .product-detail-price .discount-text{display:inline-block;margin-left:8px}
+
 </style>
 </head>
 
@@ -988,6 +1011,7 @@ let currentAdminView="dashboard";
 products=products.map(p=>({
   ...p,
   city:p.city||"cordoba",
+  oldPrice:Number(p.oldPrice||p.old_price||0),
   description:p.description||"",
   sizes:Array.isArray(p.sizes)?p.sizes:[],
   aromas:Array.isArray(p.aromas)?p.aromas:[]
@@ -1002,6 +1026,23 @@ cart=cart.map(i=>({
 
 function money(v){
   return new Intl.NumberFormat("es-AR",{style:"currency",currency:"ARS",maximumFractionDigits:0}).format(v);
+}
+
+function hasDiscount(p){
+  return Number(p.oldPrice||0)>Number(p.price||0) && Number(p.price||0)>0;
+}
+function discountPercent(p){
+  if(!hasDiscount(p))return 0;
+  return Math.round((1-(Number(p.price)/Number(p.oldPrice)))*100);
+}
+function priceMarkup(p,detail=false){
+  if(!hasDiscount(p)){
+    return `<span class="new-price">${money(p.price)}</span>`;
+  }
+  return `
+    <span class="old-price">${money(p.oldPrice)}</span>
+    <span class="new-price">${money(p.price)}</span>
+    <span class="discount-text">${discountPercent(p)}% OFF</span>`;
 }
 function persist(){
   localStorage.setItem("amorina_products",JSON.stringify(products));
@@ -1027,6 +1068,7 @@ async function loadFromSupabase(){
         name:row.name||"",
         category:row.category||"",
         price:Number(row.price||0),
+        oldPrice:Number(row.old_price||0),
         stock:Number(row.stock||0),
         description:row.description||"",
         image:row.image||"",
@@ -1190,11 +1232,12 @@ function productCard(p){
       <div class="product-image">
         <img src="${escapeAttr(p.image)}" alt="${escapeAttr(p.name)}" loading="lazy" decoding="async">
         ${p.featured?'<span class="badge">Destacado</span>':""}
+        ${hasDiscount(p)?`<span class="discount-badge">-${discountPercent(p)}%</span>`:""}
       </div>
       <div class="product-body">
         <div class="product-cat">${escapeHtml(p.category)}</div>
         <h3>${escapeHtml(p.name)}</h3>
-        <div class="price">${money(p.price)}</div>
+        <div class="price-wrap">${priceMarkup(p)}</div>
         <div class="product-actions">
           <button class="add-btn" onclick="event.stopPropagation();openProductDetail(${p.id})" ${p.stock<=0?"disabled":""}>
             ${p.stock<=0?"Sin stock":"Ver producto"}
@@ -1228,7 +1271,7 @@ function openProductDetail(id){
 
   document.getElementById("detailName").textContent=p.name;
   document.getElementById("detailCategory").textContent=p.category;
-  document.getElementById("detailPrice").textContent=money(p.price);
+  document.getElementById("detailPrice").innerHTML=`<div class="price-wrap">${priceMarkup(p,true)}</div>`;
   document.getElementById("detailDescription").textContent=p.description;
   document.getElementById("detailImage").innerHTML=`<img src="${escapeAttr(p.image)}" alt="${escapeAttr(p.name)}" loading="lazy" decoding="async">`;
   document.getElementById("detailStock").textContent=p.stock>0?`Stock disponible: ${p.stock}`:"Sin stock";
@@ -1640,7 +1683,7 @@ function renderAdminProducts(){
     <div class="admin-card">
       <table>
         <thead>
-          <tr><th>Producto</th><th>Categoría</th><th>Precio</th><th>Stock</th><th>Destacado</th><th></th></tr>
+          <tr><th>Producto</th><th>Categoría</th><th>Precio nuevo</th><th>Precio anterior</th><th>Descuento</th><th>Stock</th><th></th></tr>
         </thead>
         <tbody>
           ${products.filter(p=>p.city===adminCity).map(p=>`
@@ -1648,8 +1691,9 @@ function renderAdminProducts(){
               <td>${escapeHtml(p.name)}</td>
               <td>${escapeHtml(p.category)}</td>
               <td>${money(p.price)}</td>
+              <td>${p.oldPrice>0?money(p.oldPrice):"—"}</td>
+              <td>${hasDiscount(p)?`<strong>${discountPercent(p)}% OFF</strong>`:"—"}</td>
               <td>${p.stock}</td>
-              <td>${p.featured?"Sí":"No"}</td>
               <td>
                 <button class="small-btn edit" onclick="openProductForm(${p.id})">Editar</button>
                 <button class="small-btn delete" onclick="deleteProduct(${p.id})">Eliminar</button>
@@ -1664,7 +1708,7 @@ function openProductForm(id=null){
 
   const p=id
     ?products.find(x=>x.id===id)
-    :{city:adminCity,name:"",category:"",price:"",stock:"",featured:false,image:"",description:"",sizes:[],aromas:[]};
+    :{city:adminCity,name:"",category:"",price:"",oldPrice:"",stock:"",featured:false,image:"",description:"",sizes:[],aromas:[]};
 
   document.getElementById("adminContent").innerHTML=`
     <div class="admin-card">
@@ -1682,8 +1726,15 @@ function openProductForm(id=null){
         </div>
 
         <div>
-          <label>Precio</label>
-          <input class="field" id="pPrice" type="number" value="${p.price}">
+          <label>Precio anterior</label>
+          <input class="field" id="pOldPrice" type="number" min="0" value="${p.oldPrice||""}" placeholder="Ej: 25000">
+          <small class="notice">Dejalo vacío si el producto no está en oferta.</small>
+        </div>
+
+        <div>
+          <label>Precio nuevo</label>
+          <input class="field" id="pPrice" type="number" min="0" value="${p.price}" placeholder="Ej: 20000">
+          <small class="notice">El descuento se calcula automáticamente.</small>
         </div>
 
         <div>
@@ -1805,6 +1856,7 @@ async function saveProduct(){
     name:document.getElementById("pName").value.trim(),
     category:document.getElementById("pCategory").value.trim(),
     price:Number(document.getElementById("pPrice").value||0),
+    oldPrice:Number(document.getElementById("pOldPrice").value||0),
     stock:Number(document.getElementById("pStock").value||0),
     description:document.getElementById("pDescription").value.trim(),
     sizes:document.getElementById("pSizes").value.split(",").map(v=>v.trim()).filter(Boolean),
@@ -1817,12 +1869,17 @@ async function saveProduct(){
     return alert("Completá nombre y categoría.");
   }
 
+  if(obj.oldPrice>0 && obj.oldPrice<=obj.price){
+    return alert("Para mostrar un descuento, el precio anterior debe ser mayor que el precio nuevo.");
+  }
+
   const {error}=await supabaseClient.from("products").upsert({
     id:obj.id,
     city:obj.city,
     name:obj.name,
     category:obj.category,
     price:obj.price,
+    old_price:obj.oldPrice,
     stock:obj.stock,
     description:obj.description,
     image:obj.image,
