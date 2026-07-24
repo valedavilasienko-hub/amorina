@@ -1012,6 +1012,7 @@ products=products.map(p=>({
   ...p,
   city:p.city||"cordoba",
   oldPrice:Number(p.oldPrice||p.old_price||0),
+  sizePrices:(p.sizePrices||p.size_prices||{}),
   description:p.description||"",
   sizes:Array.isArray(p.sizes)?p.sizes:[],
   aromas:Array.isArray(p.aromas)?p.aromas:[]
@@ -1044,6 +1045,57 @@ function priceMarkup(p,detail=false){
     <span class="new-price">${money(p.price)}</span>
     <span class="discount-text">${discountPercent(p)}% OFF</span>`;
 }
+
+function normalizeSizeKey(size=""){
+  return String(size).trim().toLowerCase();
+}
+
+function sizePriceInfo(p,size=""){
+  const key=normalizeSizeKey(size);
+  const sp=p.sizePrices||{};
+  const row=sp[key]||sp[size]||null;
+
+  return {
+    price:Number(row?.price||p.price||0),
+    oldPrice:Number(row?.oldPrice||row?.old_price||0)
+  };
+}
+
+function publishedSize(p){
+  if(!Array.isArray(p.sizes)||!p.sizes.length)return "";
+  const preferred=p.sizes.find(s=>normalizeSizeKey(s).includes("median"));
+  return preferred||p.sizes[0];
+}
+
+function publishedPriceInfo(p){
+  const s=publishedSize(p);
+  return s?sizePriceInfo(p,s):{price:Number(p.price||0),oldPrice:Number(p.oldPrice||0)};
+}
+
+function variantHasDiscount(info){
+  return Number(info.oldPrice||0)>Number(info.price||0)&&Number(info.price||0)>0;
+}
+
+function variantDiscountPercent(info){
+  if(!variantHasDiscount(info))return 0;
+  return Math.round((1-(Number(info.price)/Number(info.oldPrice)))*100);
+}
+
+function priceMarkupInfo(info){
+  if(!variantHasDiscount(info)){
+    return `<span class="new-price">${money(info.price)}</span>`;
+  }
+  return `
+    <span class="old-price">${money(info.oldPrice)}</span>
+    <span class="new-price">${money(info.price)}</span>
+    <span class="discount-text">${variantDiscountPercent(info)}% OFF</span>`;
+}
+
+function cartItemUnitPrice(i){
+  const p=products.find(x=>x.id===i.id);
+  if(!p)return 0;
+  return i.size?sizePriceInfo(p,i.size).price:Number(p.price||0);
+}
 function persist(){
   localStorage.setItem("amorina_products",JSON.stringify(products));
   localStorage.setItem("amorina_settings",JSON.stringify(settings));
@@ -1069,6 +1121,7 @@ async function loadFromSupabase(){
         category:row.category||"",
         price:Number(row.price||0),
         oldPrice:Number(row.old_price||0),
+        sizePrices:row.size_prices||{},
         stock:Number(row.stock||0),
         description:row.description||"",
         image:row.image||"",
@@ -1227,17 +1280,19 @@ function renderFeatured(){
   document.getElementById("featuredGrid").innerHTML=list.slice(0,4).map(productCard).join("");
 }
 function productCard(p){
+  const pub=publishedPriceInfo(p);
+  const discount=variantHasDiscount(pub);
   return `
     <article class="product" onclick="openProductDetail(${p.id})">
       <div class="product-image">
         <img src="${escapeAttr(p.image)}" alt="${escapeAttr(p.name)}" loading="lazy" decoding="async">
         ${p.featured?'<span class="badge">Destacado</span>':""}
-        ${hasDiscount(p)?`<span class="discount-badge">-${discountPercent(p)}%</span>`:""}
+        ${discount?`<span class="discount-badge">-${variantDiscountPercent(pub)}%</span>`:""}
       </div>
       <div class="product-body">
         <div class="product-cat">${escapeHtml(p.category)}</div>
         <h3>${escapeHtml(p.name)}</h3>
-        <div class="price-wrap">${priceMarkup(p)}</div>
+        <div class="price-wrap">${priceMarkupInfo(pub)}</div>
         <div class="product-actions">
           <button class="add-btn" onclick="event.stopPropagation();openProductDetail(${p.id})" ${p.stock<=0?"disabled":""}>
             ${p.stock<=0?"Sin stock":"Ver producto"}
@@ -1266,12 +1321,13 @@ function openProductDetail(id){
 
   detailProductId=id;
   detailQty=1;
-  detailSize=p.sizes[0]||"";
+  detailSize=publishedSize(p);
   detailAroma=p.aromas[0]||"";
 
   document.getElementById("detailName").textContent=p.name;
   document.getElementById("detailCategory").textContent=p.category;
-  document.getElementById("detailPrice").innerHTML=`<div class="price-wrap">${priceMarkup(p,true)}</div>`;
+  const detailInfo=detailSize?sizePriceInfo(p,detailSize):publishedPriceInfo(p);
+  document.getElementById("detailPrice").innerHTML=`<div class="price-wrap">${priceMarkupInfo(detailInfo)}</div>`;
   document.getElementById("detailDescription").textContent=p.description;
   document.getElementById("detailImage").innerHTML=`<img src="${escapeAttr(p.image)}" alt="${escapeAttr(p.name)}" loading="lazy" decoding="async">`;
   document.getElementById("detailStock").textContent=p.stock>0?`Stock disponible: ${p.stock}`:"Sin stock";
@@ -1304,6 +1360,9 @@ function renderDetailOptions(){
       `<button class="option-chip ${v===detailAroma?"active":""}" onclick="detailAroma='${escapeJs(v)}';renderDetailOptions()">${escapeHtml(v)}</button>`
     ).join("");
   }else aromaWrap.classList.add("hidden");
+
+  const info=detailSize?sizePriceInfo(p,detailSize):publishedPriceInfo(p);
+  document.getElementById("detailPrice").innerHTML=`<div class="price-wrap">${priceMarkupInfo(info)}</div>`;
 }
 function changeDetailQty(delta){
   const p=products.find(x=>x.id===detailProductId);
@@ -1343,7 +1402,7 @@ function changeQty(key,delta){
 function cartTotal(){
   return cart.reduce((sum,i)=>{
     const p=products.find(x=>x.id===i.id);
-    return sum+(p?p.price*i.qty:0);
+    return sum+(p?cartItemUnitPrice(i)*i.qty:0);
   },0);
 }
 function renderCart(){
@@ -1366,14 +1425,14 @@ function renderCart(){
         <div>
           <strong>${escapeHtml(p.name)}</strong>
           ${variant?`<div style="font-size:12px;color:var(--muted);margin-top:4px">${variant}</div>`:""}
-          <div>${money(p.price)}</div>
+          <div>${money(cartItemUnitPrice(i))}</div>
           <div class="qty">
             <button onclick="changeQty('${escapeJs(i.key)}',-1)">−</button>
             <span>${i.qty}</span>
             <button onclick="changeQty('${escapeJs(i.key)}',1)">+</button>
           </div>
         </div>
-        <strong>${money(p.price*i.qty)}</strong>
+        <strong>${money(cartItemUnitPrice(i)*i.qty)}</strong>
       </div>`;
     }).join("");
   }
@@ -1432,7 +1491,7 @@ function orderSnapshot(data,payment){
     items:cart.map(i=>{
       const p=products.find(x=>x.id===i.id);
       return {
-        id:p.id,name:p.name,price:p.price,qty:i.qty,
+        id:p.id,name:p.name,price:cartItemUnitPrice(i),qty:i.qty,
         size:i.size||"",aroma:i.aroma||""
       };
     }),
@@ -1505,7 +1564,7 @@ function buildWhatsAppMessage(data){
       i.aroma?`Aroma: ${i.aroma}`:""
     ].filter(Boolean).join(" · ");
 
-    msg+=`${i.qty} × ${p.name}${variant?` (${variant})`:""} — ${money(p.price*i.qty)}\n`;
+    msg+=`${i.qty} × ${p.name}${variant?` (${variant})`:""} — ${money(cartItemUnitPrice(i)*i.qty)}\n`;
   });
 
   msg+=`\n*Total:* ${money(cartTotal())}\n`;
@@ -1690,9 +1749,9 @@ function renderAdminProducts(){
             <tr>
               <td>${escapeHtml(p.name)}</td>
               <td>${escapeHtml(p.category)}</td>
-              <td>${money(p.price)}</td>
-              <td>${p.oldPrice>0?money(p.oldPrice):"—"}</td>
-              <td>${hasDiscount(p)?`<strong>${discountPercent(p)}% OFF</strong>`:"—"}</td>
+              <td>${money(publishedPriceInfo(p).price)}</td>
+              <td>${publishedPriceInfo(p).oldPrice>0?money(publishedPriceInfo(p).oldPrice):"—"}</td>
+              <td>${variantHasDiscount(publishedPriceInfo(p))?`<strong>${variantDiscountPercent(publishedPriceInfo(p))}% OFF</strong>`:"—"}</td>
               <td>${p.stock}</td>
               <td>
                 <button class="small-btn edit" onclick="openProductForm(${p.id})">Editar</button>
@@ -1708,7 +1767,7 @@ function openProductForm(id=null){
 
   const p=id
     ?products.find(x=>x.id===id)
-    :{city:adminCity,name:"",category:"",price:"",oldPrice:"",stock:"",featured:false,image:"",description:"",sizes:[],aromas:[]};
+    :{city:adminCity,name:"",category:"",price:"",oldPrice:"",stock:"",featured:false,image:"",description:"",sizes:[],aromas:[],sizePrices:{}};
 
   document.getElementById("adminContent").innerHTML=`
     <div class="admin-card">
@@ -1726,15 +1785,15 @@ function openProductForm(id=null){
         </div>
 
         <div>
-          <label>Precio anterior</label>
+          <label>Precio anterior base</label>
           <input class="field" id="pOldPrice" type="number" min="0" value="${p.oldPrice||""}" placeholder="Ej: 25000">
           <small class="notice">Dejalo vacío si el producto no está en oferta.</small>
         </div>
 
         <div>
-          <label>Precio nuevo</label>
+          <label>Precio nuevo base</label>
           <input class="field" id="pPrice" type="number" min="0" value="${p.price}" placeholder="Ej: 20000">
-          <small class="notice">El descuento se calcula automáticamente.</small>
+          <small class="notice">Se usa como respaldo si un tamaño no tiene precio propio.</small>
         </div>
 
         <div>
@@ -1749,7 +1808,13 @@ function openProductForm(id=null){
 
         <div class="full">
           <label>Tamaños, separados por coma</label>
-          <input class="field" id="pSizes" value="${escapeAttr(p.sizes.join(", "))}">
+          <input class="field" id="pSizes" value="${escapeAttr(p.sizes.join(", "))}" oninput="renderSizePriceEditor()">
+          <small class="notice">El precio que se publica en la tarjeta será el de <strong>Mediano</strong>. Si no existe Mediano, se usa el primer tamaño.</small>
+        </div>
+
+        <div class="full">
+          <label>Precio por tamaño</label>
+          <div id="sizePriceEditor" class="stack" style="margin-top:10px"></div>
         </div>
 
         <div class="full">
@@ -1808,8 +1873,55 @@ function openProductForm(id=null){
         </div>
       </div>
     </div>`;
+
+  renderSizePriceEditor(p.sizePrices||{});
 }
 
+
+function renderSizePriceEditor(existing=null){
+  const wrap=document.getElementById("sizePriceEditor");
+  const sizesInput=document.getElementById("pSizes");
+  if(!wrap||!sizesInput)return;
+
+  const sizes=sizesInput.value.split(",").map(v=>v.trim()).filter(Boolean);
+  const current=existing||collectSizePricesFromForm();
+
+  if(!sizes.length){
+    wrap.innerHTML='<div class="notice">Agregá al menos un tamaño para asignarle precios.</div>';
+    return;
+  }
+
+  wrap.innerHTML=sizes.map(size=>{
+    const key=normalizeSizeKey(size);
+    const row=current[key]||{};
+    return `
+      <div class="admin-card" style="padding:14px">
+        <strong>${escapeHtml(size)}</strong>
+        <div class="admin-form" style="margin-top:10px">
+          <div>
+            <label>Precio anterior</label>
+            <input class="field size-old-price" data-size="${escapeAttr(key)}" type="number" min="0" value="${Number(row.oldPrice||row.old_price||0)||""}" placeholder="Opcional">
+          </div>
+          <div>
+            <label>Precio nuevo</label>
+            <input class="field size-new-price" data-size="${escapeAttr(key)}" type="number" min="0" value="${Number(row.price||0)||""}" placeholder="Precio de ${escapeAttr(size)}">
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function collectSizePricesFromForm(){
+  const result={};
+  document.querySelectorAll(".size-new-price").forEach(input=>{
+    const key=input.dataset.size;
+    const price=Number(input.value||0);
+    const oldInput=document.querySelector(`.size-old-price[data-size="${CSS.escape(key)}"]`);
+    const oldPrice=Number(oldInput?.value||0);
+    result[key]={price,oldPrice};
+  });
+  return result;
+}
 function previewProductImage(value){
   const img=document.getElementById("pImagePreview");
   if(!img)return;
@@ -1861,6 +1973,7 @@ async function saveProduct(){
     description:document.getElementById("pDescription").value.trim(),
     sizes:document.getElementById("pSizes").value.split(",").map(v=>v.trim()).filter(Boolean),
     aromas:document.getElementById("pAromas").value.split(",").map(v=>v.trim()).filter(Boolean),
+    sizePrices:collectSizePricesFromForm(),
     image:document.getElementById("pImage").value.trim(),
     featured:document.getElementById("pFeatured").checked
   };
@@ -1870,7 +1983,16 @@ async function saveProduct(){
   }
 
   if(obj.oldPrice>0 && obj.oldPrice<=obj.price){
-    return alert("Para mostrar un descuento, el precio anterior debe ser mayor que el precio nuevo.");
+    return alert("Para mostrar un descuento base, el precio anterior debe ser mayor que el precio nuevo.");
+  }
+
+  for(const [size,row] of Object.entries(obj.sizePrices)){
+    if(Number(row.price||0)<=0){
+      return alert(`Falta el precio nuevo para el tamaño ${size}.`);
+    }
+    if(Number(row.oldPrice||0)>0 && Number(row.oldPrice)<=Number(row.price)){
+      return alert(`En ${size}, el precio anterior debe ser mayor que el precio nuevo.`);
+    }
   }
 
   const {error}=await supabaseClient.from("products").upsert({
@@ -1880,6 +2002,7 @@ async function saveProduct(){
     category:obj.category,
     price:obj.price,
     old_price:obj.oldPrice,
+    size_prices:obj.sizePrices,
     stock:obj.stock,
     description:obj.description,
     image:obj.image,
