@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Allura&display=swap" rel="stylesheet">
   <title>Amorina | Home Scents Córdoba</title>
   <meta name="description" content="Amorina Córdoba. Velas, difusores y aromas para el hogar.">
   <style>
@@ -620,13 +623,51 @@
     .product-detail-price .new-price{font-size:27px}
     .product-detail-price .discount-text{display:inline-block;margin-left:8px}
 
+
+    .amorina-script{
+      font-family:"Allura", cursive !important;
+      font-weight:400;
+      letter-spacing:0;
+      text-transform:none;
+      line-height:1;
+    }
+    .brand.amorina-logo{
+      font-family:"Allura", cursive;
+      font-size:56px;
+      font-weight:400;
+      letter-spacing:0;
+      text-transform:none;
+      line-height:.95;
+    }
+    .eyebrow .amorina-script{
+      font-size:34px;
+      display:inline-block;
+      margin-top:4px;
+    }
+    #catalogCityLabel .amorina-script{
+      font-size:36px;
+      vertical-align:middle;
+      margin-right:4px;
+    }
+    #footerCityName .amorina-script{
+      font-size:34px;
+      vertical-align:middle;
+      margin-right:4px;
+    }
+    @media(max-width:700px){
+      .brand.amorina-logo{font-size:48px}
+      .eyebrow .amorina-script{font-size:28px}
+      #catalogCityLabel .amorina-script{font-size:30px}
+      #footerCityName .amorina-script{font-size:28px}
+    }
+
 </style>
 </head>
 
 <body>
 <header>
   <div class="container nav">
-    <a href="#inicio" class="brand">AMORINA</a>
+    <a href="#inicio" class="brand amorina-logo">Amorina</a>
     <nav class="navlinks">
       <a href="#inicio">Inicio</a>
       <a href="#" onclick="openCatalogWindow(event)">Catálogo</a>
@@ -680,7 +721,7 @@
   <section>
     <div class="container story">
       <div class="story-copy">
-        <div class="eyebrow">AMORINA</div>
+        <div class="eyebrow"><span class="amorina-script">Amorina</span></div>
         <h2>Un aroma puede cambiar por completo un espacio.</h2>
         <p>Fragancias pensadas para acompañar tus espacios con calidez, identidad y pequeños rituales cotidianos.</p>
         <div><button class="btn btn-primary" onclick="openCatalogWindow(event)">Explorar productos</button></div>
@@ -708,10 +749,10 @@
 <footer>
   <div class="container footer-row">
     <div>
-      <div class="brand">AMORINA</div>
+      <div class="brand amorina-logo">Amorina</div>
     </div>
     <div>
-      <small>© <span id="year"></span> <span id="footerCityName">Amorina Córdoba</span></small>
+      <small>© <span id="year"></span> <span id="footerCityName"><span class="amorina-script">Amorina</span> Córdoba</span></small>
       <button class="admin-link" onclick="openAdmin()">Administración</button>
     </div>
   </div>
@@ -725,7 +766,7 @@
   <div class="container catalog-window-content">
     <div class="section-head">
       <div>
-        <div class="eyebrow" id="catalogCityLabel">AMORINA · CÓRDOBA</div>
+        <div class="eyebrow" id="catalogCityLabel"><span class="amorina-script">Amorina</span> · CÓRDOBA</div>
         <h2>Catálogo</h2>
         <p>Todos los productos en un solo lugar.</p>
       </div>
@@ -2314,8 +2355,8 @@ function updatePublicSettings(){
   const s=currentCitySettings();
 
   document.getElementById("heroCityLabel").textContent=`Home Scents · ${s.label}`;
-  document.getElementById("catalogCityLabel").textContent=`AMORINA · ${s.label.toUpperCase()}`;
-  document.getElementById("footerCityName").textContent=`Amorina ${s.label}`;
+  document.getElementById("catalogCityLabel").innerHTML=`<span class="amorina-script">Amorina</span> · ${s.label.toUpperCase()}`;
+  document.getElementById("footerCityName").innerHTML=`<span class="amorina-script">Amorina</span> ${s.label}`;
 
   document.getElementById("cityBtnCordoba")?.classList.toggle("active",activeCity==="cordoba");
   document.getElementById("cityBtnBuenosAires")?.classList.toggle("active",activeCity==="buenosaires");
