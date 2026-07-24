@@ -869,6 +869,11 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+if(!window.supabase){
+  document.write('<script src="https://unpkg.com/@supabase/supabase-js@2"><\/script>');
+}
+</script>
+<script>
 const SUPABASE_URL = "https://mkintrylccmldyaycivt.supabase.co";
 const SUPABASE_KEY = "sb_publishable_mX6RGRhCcXfXdHZCmTzPXA_RN4bgo-s";
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1761,7 +1766,7 @@ function previewProductImage(value){
   img.src=value.trim();
 }
 
-async async function uploadProductImage(file){
+async function uploadProductImage(file){
   if(!file)return;
 
   if(!file.type.startsWith("image/")){
@@ -1961,7 +1966,7 @@ function previewWebPhoto(key,value){
   img.src=value.trim()||settings.webPhotos[key]||"";
 }
 
-async async function uploadWebPhoto(key,file){
+async function uploadWebPhoto(key,file){
   if(!file)return;
 
   if(!file.type.startsWith("image/")){
