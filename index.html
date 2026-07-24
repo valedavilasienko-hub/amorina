@@ -547,7 +547,10 @@
           <h2>¿Necesitás ayuda con tu compra?</h2>
           <p>Escribinos por WhatsApp y te ayudamos a elegir productos, aromas, envío o retiro.</p>
         </div>
-        <button class="btn btn-soft" onclick="openGeneralWhatsApp()">Hablar por WhatsApp</button>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-soft" onclick="openGeneralWhatsApp()">Hablar por WhatsApp</button>
+          <button class="btn btn-soft" onclick="openInstagram()">Ver Instagram</button>
+        </div>
       </div>
     </div>
   </section>
@@ -557,7 +560,7 @@
   <div class="container footer-row">
     <div>
       <div class="brand">AMORINA</div>
-      <small id="footerInstagram">Home Scents · Córdoba</small>
+      <a id="footerInstagramLink" href="#" target="_blank" rel="noopener"><small id="footerInstagram">Home Scents · Córdoba</small></a>
     </div>
     <div>
       <small>© <span id="year"></span> <span id="footerCityName">Amorina Córdoba</span></small>
@@ -1146,6 +1149,20 @@ function saveOrder(order){
   persist();
 }
 
+
+function instagramUrl(){
+  const ig=(currentCitySettings().instagram||"").trim();
+  if(!ig)return "";
+  if(/^https?:\/\//i.test(ig))return ig;
+  return `https://www.instagram.com/${ig.replace(/^@/,"").replace(/\/+$/,"")}/`;
+}
+
+function openInstagram(){
+  const url=instagramUrl();
+  if(!url)return alert("Configurá el Instagram de esta ciudad desde Administración.");
+  window.open(url,"_blank","noopener");
+}
+
 function whatsappNumber(){
   return (currentCitySettings().whatsapp||"").replace(/\D/g,"");
 }
@@ -1718,7 +1735,7 @@ function renderAdminSettings(){
 
         <div>
           <label>Instagram</label>
-          <input class="field" id="sInstagram" value="${escapeAttr(s.instagram)}" placeholder="@amorina...">
+          <input class="field" id="sInstagram" value="${escapeAttr(s.instagram)}" placeholder="@usuario o https://instagram.com/usuario">
         </div>
 
         <div class="full">
@@ -1771,8 +1788,15 @@ function saveSettings(){
 function updatePublicSettings(){
   const s=currentCitySettings();
 
-  document.getElementById("footerInstagram").textContent=
+  const footerInstagram=document.getElementById("footerInstagram");
+  const footerInstagramLink=document.getElementById("footerInstagramLink");
+
+  footerInstagram.textContent=
     s.instagram?`${s.instagram} · ${s.label}`:`Home Scents · ${s.label}`;
+
+  const igUrl=instagramUrl();
+  footerInstagramLink.href=igUrl||"#";
+  footerInstagramLink.onclick=igUrl?null:(e=>{e.preventDefault();alert("Configurá el Instagram de esta ciudad desde Administración.");});
 
   document.getElementById("heroCityLabel").textContent=`Home Scents · ${s.label}`;
   document.getElementById("catalogCityLabel").textContent=`AMORINA · ${s.label.toUpperCase()}`;
